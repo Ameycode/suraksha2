@@ -19,10 +19,52 @@ interface IncomingAlert {
   fromAvatar?: string;
 }
 
+// Helper function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Helper function to format distance
+const formatDistance = (meters: number): string => {
+  if (meters < 1000) {
+    return Math.round(meters) + ' m';
+  }
+  return (meters / 1000).toFixed(1) + ' km';
+};
+
 export const CoTravel: React.FC<CoTravelProps> = ({ travellers, userLocation }) => {
   const [alertingId, setAlertingId] = useState<string | null>(null);
   const [sentAlerts, setSentAlerts] = useState<Set<string>>(new Set());
   const [incomingAlerts, setIncomingAlerts] = useState<IncomingAlert[]>([]);
+
+  // Filter travellers to show only those within 50 meters
+  const nearbyTravellers = userLocation 
+    ? travellers
+        .map(t => ({
+          ...t,
+          distance: t.location 
+            ? calculateDistance(userLocation.lat, userLocation.lng, t.location.lat, t.location.lng)
+            : undefined
+        }))
+        .filter(t => {
+          // Always show current user, show others only if within 50 meters
+          return t.name.includes('(Me)') || (t.distance !== undefined && t.distance <= 50);
+        })
+        .sort((a, b) => {
+          // Sort: current user first, then by distance
+          if (a.name.includes('(Me)')) return -1;
+          if (b.name.includes('(Me)')) return 1;
+          return (a.distance || Infinity) - (b.distance || Infinity);
+        })
+    : travellers;
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -144,7 +186,7 @@ export const CoTravel: React.FC<CoTravelProps> = ({ travellers, userLocation }) 
           <div className="relative z-10">
             <h2 className="text-3xl font-black mb-3 tracking-tight">Buddy Network</h2>
             <p className="opacity-80 text-sm mb-8 max-w-2xl leading-relaxed">
-              Connect with verified members active on the grid. Send a "Buddy Alert" to coordinate paths or request mutual live-tracking for enhanced safety.
+              Connect with verified members active nearby (within 50 meters). Send a "Buddy Alert" to coordinate paths or request mutual live-tracking for enhanced safety.
             </p>
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 w-fit px-5 py-2.5 rounded-full border border-white/20">
                {/* Added missing ShieldCheck icon */}
@@ -154,15 +196,15 @@ export const CoTravel: React.FC<CoTravelProps> = ({ travellers, userLocation }) 
           </div>
         </div>
 
-        {travellers.length === 0 ? (
+        {nearbyTravellers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 bg-soft-lavender/20 rounded-[3rem] border-2 border-dashed border-lavender-medium">
             <User className="text-lavender-medium mb-4" size={56} />
-            <p className="text-slate-800 font-bold">Grid Silence</p>
-            <p className="text-slate-400 text-xs mt-1">More members are joining as we expand.</p>
+            <p className="text-slate-800 font-bold">No members within 50 meters</p>
+            <p className="text-slate-400 text-xs mt-1">Members nearby will appear as they come within range.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pb-10">
-            {travellers.map((member) => {
+            {nearbyTravellers.map((member) => {
               const isMe = member.name.includes('(Me)');
               const isAlerting = alertingId === member.id;
               const hasSent = sentAlerts.has(member.id);
@@ -184,8 +226,13 @@ export const CoTravel: React.FC<CoTravelProps> = ({ travellers, userLocation }) 
                    <div className="flex-1 min-w-0">
                      <h3 className={`font-bold truncate text-sm uppercase tracking-tight ${isMe ? 'text-calm-teal-deep' : 'text-slate-800'}`}>{member.name}</h3>
                      <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium truncate mt-1">
-                       {/* Added missing MapPin icon */}
+                       {/* Distance display */}
                        <MapPin size={10} className="text-lavender-deep" />
+                       <span className="truncate">
+                         {isMe ? 'Your Location' : (member.distance !== undefined ? `${formatDistance(member.distance)} away` : 'Nearby Member')}
+                       </span>
+                     </div>
+                     <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium truncate mt-0.5">
                        <span className="truncate">{member.destination}</span>
                      </div>
                    </div>

@@ -45,6 +45,8 @@ export interface CoTraveller {
   timeWindow: string;
   verified: boolean;
   avatar: string;
+  location?: Coordinates; // User's current location
+  distance?: number; // Distance from current user in meters
 }
 
 export interface GeminiAnalysisResult {

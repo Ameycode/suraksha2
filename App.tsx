@@ -100,7 +100,8 @@ function App() {
             destination: userData.vibe ? `Vibe: ${userData.vibe}` : 'Nearby Member',
             timeWindow: 'Active on Grid',
             verified: userData.status === 'verified' || userData.isFemale === true,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.uid || key}`
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.uid || key}`,
+            location: userData.location ? { lat: userData.location.lat, lng: userData.location.lng } : undefined
           };
         });
         userList.sort((a, b) => a.name.includes('(Me)') ? -1 : (b.name.includes('(Me)') ? 1 : 0));
@@ -227,12 +228,17 @@ function App() {
 
     if (auth.currentUser) {
       const userStatusRef = ref(db, `users/${auth.currentUser.uid}/live_coords`);
+      const userLocationRef = ref(db, `users/${auth.currentUser.uid}/location`);
       set(userStatusRef, {
         lat: newLat,
         lng: newLng,
         accuracy: newAccuracy,
         timestamp: Date.now()
       }).catch(e => console.error("Coord sync failed:", e));
+      set(userLocationRef, {
+        lat: newLat,
+        lng: newLng
+      }).catch(e => console.error("Location sync failed:", e));
     }
   }, [userLocation]); // Added dependency to check against existing location
 
