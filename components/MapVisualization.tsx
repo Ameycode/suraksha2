@@ -25,13 +25,13 @@ interface MapVisualizationProps {
   emergencies?: any[];
 }
 
-export const MapVisualization: React.FC<MapVisualizationProps> = ({ 
-  nodes, 
-  userLocation, 
-  onNodeClick, 
-  onRefreshLocation, 
-  activeRoute, 
-  emergencies = [] 
+export const MapVisualization: React.FC<MapVisualizationProps> = ({
+  nodes,
+  userLocation,
+  onNodeClick,
+  onRefreshLocation,
+  activeRoute,
+  emergencies = []
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<Map | null>(null);
@@ -40,7 +40,7 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
   const popupContainerRef = useRef<HTMLDivElement>(null);
   const popupOverlayRef = useRef<Overlay | null>(null);
   const [popupContent, setPopupContent] = useState<SafetyNode | null>(null);
-  
+
   // Keep track of node overlays to cleanup
   const nodeOverlaysRef = useRef<Overlay[]>([]);
   const vectorSourceRef = useRef<VectorSource | null>(null);
@@ -67,6 +67,24 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
           return new Style({
             stroke: new Stroke({ color: '#7E22CE', width: 4, lineDash: [10, 10] }), // Dotted line
           });
+        }
+        if (type === 'route-segment') {
+          const psi = feature.get('psi') || 50;
+          // Red for low PSI, Yellow for medium, Green for high
+          let color = '#FF4D4D'; // Red
+          if (psi > 70) color = '#2DD4BF'; // Green/Teal
+          else if (psi > 40) color = '#FACC15'; // Yellow
+
+          return [
+            // Dark Outline
+            new Style({
+              stroke: new Stroke({ color: 'rgba(0,0,0,0.1)', width: 12, lineCap: 'round' }),
+            }),
+            // Colored Segment
+            new Style({
+              stroke: new Stroke({ color: color, width: 8, lineCap: 'round' }),
+            })
+          ];
         }
         if (type === 'accuracy') {
           return new Style({
@@ -114,9 +132,9 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
         stopEvent: true,
         offset: [0, -45],
         autoPan: {
-           animation: {
-             duration: 250,
-           },
+          animation: {
+            duration: 250,
+          },
         },
       });
       map.addOverlay(popup);
@@ -140,13 +158,13 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
     if (!mapInstance.current || !userOverlayRef.current || !vectorSourceRef.current) return;
 
     const coords = fromLonLat([userLocation.lng, userLocation.lat]);
-    
+
     // Update Marker Position
     userOverlayRef.current.setPosition(coords);
 
     // Update Accuracy Circle (re-create feature)
     const source = vectorSourceRef.current;
-    
+
     // Remove old accuracy feature
     const features = source.getFeatures();
     const oldAcc = features.find(f => f.get('type') === 'accuracy');
@@ -156,7 +174,7 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
     if (userLocation.accuracy && userLocation.accuracy < 500) {
       const circle = circularPolygon([userLocation.lng, userLocation.lat], userLocation.accuracy);
       circle.transform('EPSG:4326', 'EPSG:3857'); // Transform to map projection
-      
+
       const accFeature = new Feature(circle);
       accFeature.set('type', 'accuracy');
       source.addFeature(accFeature);
@@ -184,7 +202,7 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
       const isReport = node.type === 'report';
       let colorClass = isHighPsi ? 'bg-calm-teal' : 'bg-lavender-medium';
       if (isReport) colorClass = 'bg-blush-deep'; // Distinct color for user reports
-      
+
       let emoji = '📍';
       switch (node.type) {
         case 'shop': emoji = '🛍️'; break;
@@ -244,11 +262,11 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
   useEffect(() => {
     if (!vectorSourceRef.current || !mapInstance.current) return;
     const source = vectorSourceRef.current;
-    
+
     // Clear old route features
     const features = source.getFeatures();
     features.forEach(f => {
-        if (f.get('type')?.startsWith('route')) source.removeFeature(f);
+      if (f.get('type')?.startsWith('route')) source.removeFeature(f);
     });
 
     if (activeRoute) {
@@ -258,28 +276,48 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
             `https://router.project-osrm.org/route/v1/walking/${activeRoute.start.lng},${activeRoute.start.lat};${activeRoute.end.lng},${activeRoute.end.lat}?overview=full&geometries=geojson`
           );
           const data = await response.json();
-          
+
           let coordinates = [];
-          
+
           if (data.routes && data.routes.length > 0) {
-             coordinates = data.routes[0].geometry.coordinates.map((coord: number[]) => fromLonLat(coord));
+            coordinates = data.routes[0].geometry.coordinates.map((coord: number[]) => fromLonLat(coord));
           } else {
-             coordinates = [
-                 fromLonLat([activeRoute.start.lng, activeRoute.start.lat]),
-                 fromLonLat([activeRoute.end.lng, activeRoute.end.lat])
-             ];
+            coordinates = [
+              fromLonLat([activeRoute.start.lng, activeRoute.start.lat]),
+              fromLonLat([activeRoute.end.lng, activeRoute.end.lat])
+            ];
           }
 
-          const lineString = new LineString(coordinates);
-          const glowFeature = new Feature(lineString);
-          glowFeature.set('type', 'route-glow');
-          const lineFeature = new Feature(lineString);
-          lineFeature.set('type', 'route-line');
+          if (activeRoute.heatmapData && activeRoute.heatmapData.length > 1) {
+            // Render heatmap segments
+            for (let i = 0; i < activeRoute.heatmapData.length - 1; i++) {
+              const p1 = activeRoute.heatmapData[i];
+              const p2 = activeRoute.heatmapData[i + 1];
 
-          source.addFeature(glowFeature);
-          source.addFeature(lineFeature);
+              const segment = new LineString([
+                fromLonLat([p1.lng, p1.lat]),
+                fromLonLat([p2.lng, p2.lat])
+              ]);
 
-          const extent = lineString.getExtent();
+              const segmentFeature = new Feature(segment);
+              segmentFeature.set('type', 'route-segment');
+              segmentFeature.set('psi', p1.psi);
+              source.addFeature(segmentFeature);
+            }
+          } else {
+            // Fallback to standard OSRM display
+            const lineString = new LineString(coordinates);
+            const glowFeature = new Feature(lineString);
+            glowFeature.set('type', 'route-glow');
+            const lineFeature = new Feature(lineString);
+            lineFeature.set('type', 'route-line');
+
+            source.addFeature(glowFeature);
+            source.addFeature(lineFeature);
+          }
+
+          const fullBounds = new LineString(coordinates);
+          const extent = fullBounds.getExtent();
           mapInstance.current?.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
 
         } catch (error) {
@@ -307,12 +345,12 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
       {/* User Marker Element */}
       <div ref={userElRef} className="pointer-events-none">
         <div className="relative flex items-center justify-center -translate-x-1/2 -translate-y-1/2">
-           <div className="absolute -top-10 bg-white border border-lavender-medium px-2 py-1 rounded shadow-sm whitespace-nowrap z-50 animate-in fade-in slide-in-from-bottom-1">
-             <span className="text-[10px] font-bold text-lavender-deep uppercase tracking-wide">You are here</span>
-             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-white"></div>
-           </div>
-           <div className="w-4 h-4 bg-lavender-deep rounded-full border-2 border-white shadow-xl z-10 relative"></div>
-           <div className="absolute w-12 h-12 bg-lavender-deep rounded-full animate-ping opacity-30"></div>
+          <div className="absolute -top-10 bg-white border border-lavender-medium px-2 py-1 rounded shadow-sm whitespace-nowrap z-50 animate-in fade-in slide-in-from-bottom-1">
+            <span className="text-[10px] font-bold text-lavender-deep uppercase tracking-wide">You are here</span>
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-white"></div>
+          </div>
+          <div className="w-4 h-4 bg-lavender-deep rounded-full border-2 border-white shadow-xl z-10 relative"></div>
+          <div className="absolute w-12 h-12 bg-lavender-deep rounded-full animate-ping opacity-30"></div>
         </div>
       </div>
 
@@ -324,25 +362,25 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xl">{popupContent.type === 'report' ? '💬' : '📍'}</span>
               <div className="min-w-0">
-                 <h4 className="font-bold text-slate-800 text-sm truncate">{popupContent.label}</h4>
-                 <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                    <Clock size={10} /> {popupContent.lastUpdate}
-                 </div>
+                <h4 className="font-bold text-slate-800 text-sm truncate">{popupContent.label}</h4>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <Clock size={10} /> {popupContent.lastUpdate}
+                </div>
               </div>
             </div>
-            
+
             <div className="bg-soft-lavender/30 rounded-lg p-2 mb-2 text-xs text-slate-600 font-medium leading-relaxed">
               {popupContent.description}
             </div>
 
             {popupContent.details && (
               <div className="grid grid-cols-2 gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-wide mb-2">
-                 <div className="bg-white border border-soft-lavender rounded p-1 text-center">
-                   Light: {popupContent.details.lighting || 'N/A'}
-                 </div>
-                 <div className="bg-white border border-soft-lavender rounded p-1 text-center">
-                   Crowd: {popupContent.details.crowd || 'N/A'}
-                 </div>
+                <div className="bg-white border border-soft-lavender rounded p-1 text-center">
+                  Light: {popupContent.details.lighting || 'N/A'}
+                </div>
+                <div className="bg-white border border-soft-lavender rounded p-1 text-center">
+                  Crowd: {popupContent.details.crowd || 'N/A'}
+                </div>
               </div>
             )}
 
@@ -365,18 +403,18 @@ export const MapVisualization: React.FC<MapVisualizationProps> = ({
 
       {/* Legend & Controls */}
       <div className="absolute top-6 right-6 z-[1001] bg-white/95 backdrop-blur-md p-4 rounded-[1.5rem] border border-lavender-medium shadow-xl flex flex-col gap-3 pointer-events-none md:flex">
-         <div className="flex items-center gap-3">
-           <div className="w-2.5 h-2.5 rounded-full bg-lavender-deep ring-4 ring-lavender-deep/20"></div>
-           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">You</span>
-         </div>
-         <div className="flex items-center gap-3">
-           <div className="w-2.5 h-2.5 rounded-full bg-calm-teal ring-4 ring-calm-teal/20"></div>
-           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Safe Zone</span>
-         </div>
-         <div className="flex items-center gap-3">
-           <div className="w-2.5 h-2.5 rounded-full bg-blush-deep ring-4 ring-blush-deep/20"></div>
-           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Report</span>
-         </div>
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-lavender-deep ring-4 ring-lavender-deep/20"></div>
+          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">You</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-calm-teal ring-4 ring-calm-teal/20"></div>
+          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Safe Zone</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-blush-deep ring-4 ring-blush-deep/20"></div>
+          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Report</span>
+        </div>
       </div>
 
       <button

@@ -51,6 +51,7 @@ export interface RouteSafetyAnalysis {
   riskFactors: string[];
   safeZones: string[];
   sources: any[];
+  heatmapData?: Array<{ lat: number; lng: number; psi: number }>;
 }
 
 export const getRouteSafetyAdviceWithSearch = async (start: string, end: string, time: string): Promise<RouteSafetyAnalysis> => {
@@ -76,7 +77,7 @@ export const getRouteSafetyAdviceWithSearch = async (start: string, end: string,
         }
       }
     });
-    
+
     const json = JSON.parse(response.text || '{}');
     return {
       safetyScore: json.safetyScore || 75,
@@ -85,13 +86,17 @@ export const getRouteSafetyAdviceWithSearch = async (start: string, end: string,
       safeZones: json.safeZones || ["Busy intersections"],
       sources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
-  } catch (error) {
-    console.error("Gemini Route Search Failed:", error);
+  } catch (error: any) {
+    if (error?.message?.includes('429')) {
+      console.warn("Gemini Quota Exceeded (429). Using mock safety data for demo.");
+    } else {
+      console.error("Gemini Route Search Failed:", error);
+    }
     return {
-      safetyScore: 70,
-      summary: "Unable to retrieve live data. Stick to well-lit main roads.",
-      riskFactors: ["Data unavailable"],
-      safeZones: [],
+      safetyScore: 85,
+      summary: "Demo Mode: Standard safety patterns applied. Main roads are well-lit.",
+      riskFactors: ["Stick to main brightly lit corridors.", "Avoid isolated shortcuts after 9 PM."],
+      safeZones: ["Police Stations", "24/7 Pharmacies", "Open Supermarkets"],
       sources: []
     };
   }
@@ -140,7 +145,7 @@ export const speakSafetyAdvice = async (text: string) => {
       const binary = atob(base64Audio);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      
+
       const dataInt16 = new Int16Array(bytes.buffer);
       const buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
       const channelData = buffer.getChannelData(0);

@@ -64,6 +64,7 @@ export interface ActiveRoute {
   end: Coordinates;
   startLabel: string;
   endLabel: string;
+  heatmapData?: Array<{ lat: number; lng: number; psi: number }>;
 }
 
 export enum AppMode {
