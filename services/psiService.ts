@@ -1,5 +1,5 @@
 
-const PSI_BASE_URL = "http://localhost:8000";
+const PSI_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export interface SafestRouteResponse {
     best_route_index: number;
