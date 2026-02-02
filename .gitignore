@@ -45,5 +45,9 @@ pip-delete-this-directory.txt
 # *.pkl
 # *.joblib
 
-# Render specific
-render.yaml
+# Temporary files
+*_loc.txt
+*_log.txt
+test_echo.txt
+reorganize.py
+
