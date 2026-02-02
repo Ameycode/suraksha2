@@ -12,7 +12,7 @@ services:
         sync: false
     autoDeploy: true
     
-  - type: web
+  - type: static
     name: suraksha-frontend
     rootDir: frontend
     buildCommand: "npm install && npm run build"
