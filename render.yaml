@@ -3,24 +3,23 @@ services:
     name: suraksha-backend
     runtime: python
     rootDir: backend
-    startCommand: "uvicorn psi_server:app --host 0.0.0.0 --port $PORT"
-    buildCommand: "pip install -r requirements.txt"
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn psi_server:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: GEMINI_API_KEY
         sync: false
-    autoDeploy: true
-    
-  - type: static
+
+  - type: web
     name: suraksha-frontend
+    runtime: static
     rootDir: frontend
-    buildCommand: "npm install && npm run build"
+    buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
         value: https://suraksha-backend.onrender.com
       - key: VITE_GEMINI_API_KEY
         sync: false
-    autoDeploy: true
-
