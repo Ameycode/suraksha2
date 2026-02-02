@@ -78,7 +78,8 @@ async def predict_psi(features: SafetyFeatures):
 @app.post("/location-psi")
 async def location_psi(loc: LocationUpdate):
     # Find the nearest historical data point to get regional context
-    dist, idx = tree.query([loc.lat, loc.lng])
+    # Find the nearest historical data point to get regional context
+    dist, idx = tree.query([[loc.lat, loc.lng]])
     nearest_data = df.iloc[idx]
     
     # Use features from nearest historical point but with current lat/lng
@@ -109,7 +110,7 @@ async def safest_route(req: RouteRequest):
         
         point_data = []
         for p in route:
-            dist, idx = tree.query([p[0], p[1]])
+            dist, idx = tree.query([[p[0], p[1]]])
             nearest_data = df.iloc[idx]
             data = [[
                 nearest_data['crime_rate'], nearest_data['light_level'], nearest_data['crowd_density'],
